@@ -13,7 +13,8 @@ import {
   LogOut,
   ChevronLeft,
   ChevronRight,
-  User,
+  UserCog,
+  UsersRound,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -30,20 +31,38 @@ const AppSidebar = () => {
 
   const navItems = [
     { to: "/", icon: LayoutDashboard, label: "Dashboard", roles: undefined },
-    { to: "/users", icon: Users, label: "Users", roles: ["SUPERADMIN", "ADMIN", "HR"] as const },
-    { to: "/employees", icon: User, label: "Employees", roles: ["SUPERADMIN", "ADMIN", "HR", "MANAGER"] as const },
+    { to: "/users", icon: UserCog, label: "Users", roles: ["SUPERADMIN", "ADMIN", "HR"] as const },
+    {
+      to: "/employees",
+      icon: UsersRound,
+      label: "Employees",
+      roles: ["SUPERADMIN", "ADMIN", "HR", "MANAGER"] as const,
+    },
     { to: "/companies", icon: Building2, label: "Companies", roles: ["SUPERADMIN"] as const },
-    { to: "/branches", icon: GitBranch, label: "Branches", roles: ["SUPERADMIN", "ADMIN"] as const },
-    { to: "/departments", icon: Layers, label: "Departments", roles: ["SUPERADMIN", "ADMIN", "HR"] as const },
-    { to: "/designations", icon: Award, label: "Designations", roles: ["SUPERADMIN", "ADMIN", "HR"] as const },
+    {
+      to: "/branches",
+      icon: GitBranch,
+      label: "Branches",
+      roles: ["SUPERADMIN", "ADMIN"] as const,
+    },
+    {
+      to: "/departments",
+      icon: Layers,
+      label: "Departments",
+      roles: ["SUPERADMIN", "ADMIN", "HR"] as const,
+    },
+    {
+      to: "/designations",
+      icon: Award,
+      label: "Designations",
+      roles: ["SUPERADMIN", "ADMIN", "HR"] as const,
+    },
     { to: "/attendance", icon: CalendarCheck, label: "Attendance", roles: undefined },
     { to: "/holidays", icon: CalendarDays, label: "Holidays", roles: undefined },
     { to: "/notices", icon: Megaphone, label: "Notices", roles: undefined },
   ];
 
-  const filteredNav = navItems.filter(
-    (item) => !item.roles || hasRole(...(item.roles as any))
-  );
+  const filteredNav = navItems.filter((item) => !item.roles || hasRole(...(item.roles as any)));
 
   return (
     <aside

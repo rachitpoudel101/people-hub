@@ -1,5 +1,24 @@
+import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Users, CalendarCheck, Megaphone, Building2, TrendingUp, Clock } from "lucide-react";
+import { apiRequest } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
+
+interface DashboardStats {
+  total_employees: number;
+  present_today: number;
+  on_leave: number;
+  active_notices: number;
+  attendance_percentage?: number;
+  employee_growth?: number;
+}
+
+interface Activity {
+  id: number;
+  text: string;
+  time: string;
+  type: string;
+}
 
 const StatCard = ({
   icon: Icon,
@@ -34,57 +53,88 @@ const StatCard = ({
 
 const DashboardPage = () => {
   const { user, hasRole } = useAuth();
+  const { toast } = useToast();
+  const [stats, setStats] = useState<DashboardStats>({
+    total_employees: 0,
+    present_today: 0,
+    on_leave: 0,
+    active_notices: 0,
+  });
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const stats = [
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      // Fetch stats - gracefully handle if endpoint doesn't exist
+      try {
+        const statsData = await apiRequest<DashboardStats>("/dashboard/stats/");
+        setStats(statsData);
+      } catch (error) {
+        console.log("Dashboard stats endpoint not available, using defaults");
+      }
+
+      // Fetch recent activities
+      try {
+        const activitiesData = await apiRequest<any>("/dashboard/activities/");
+        const results = Array.isArray(activitiesData)
+          ? activitiesData
+          : activitiesData.results || [];
+        setActivities(results);
+      } catch (error) {
+        console.log("Dashboard activities endpoint not available");
+      }
+    } catch (error) {
+      console.error("Failed to fetch dashboard data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const statCards = [
     {
       icon: Users,
       label: "Total Employees",
-      value: "248",
-      change: "+12 this month",
+      value: loading ? "..." : stats.total_employees.toString(),
+      change: stats.employee_growth ? `+${stats.employee_growth} this month` : undefined,
       color: "bg-primary/10 text-primary",
     },
     {
       icon: CalendarCheck,
       label: "Present Today",
-      value: "213",
-      change: "86% attendance",
+      value: loading ? "..." : stats.present_today.toString(),
+      change: stats.attendance_percentage
+        ? `${stats.attendance_percentage}% attendance`
+        : undefined,
       color: "bg-success/10 text-success",
     },
     {
       icon: Clock,
       label: "On Leave",
-      value: "18",
+      value: loading ? "..." : stats.on_leave.toString(),
       color: "bg-warning/10 text-warning",
     },
     {
       icon: Megaphone,
       label: "Active Notices",
-      value: "7",
+      value: loading ? "..." : stats.active_notices.toString(),
       color: "bg-info/10 text-info",
     },
-  ];
-
-  const recentActivities = [
-    { text: "Ramesh Sharma checked in", time: "2 min ago", type: "attendance" },
-    { text: "New holiday added: Dashain", time: "1 hour ago", type: "holiday" },
-    { text: "Sita Rai submitted leave request", time: "3 hours ago", type: "leave" },
-    { text: "Department 'Engineering' updated", time: "5 hours ago", type: "department" },
-    { text: "Notice: Office closure on Friday", time: "Yesterday", type: "notice" },
   ];
 
   return (
     <div>
       <div className="page-header">
-        <h1 className="page-title">
-          Welcome back, {user?.first_name || "User"}
-        </h1>
-        <p className="page-description">
-          Here's what's happening across your organization today.
-        </p>
+        <h1 className="page-title">Welcome back, {user?.first_name || "User"}</h1>
+        <p className="page-description">Here's what's happening across your organization today.</p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        {stats.map((stat, i) => (
+        {statCards.map((stat, i) => (
           <div key={stat.label} style={{ animationDelay: `${i * 80}ms` }}>
             <StatCard {...stat} />
           </div>
@@ -92,24 +142,36 @@ const DashboardPage = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 data-table-container p-6 animate-fade-in" style={{ animationDelay: "300ms" }}>
+        <div
+          className="lg:col-span-2 data-table-container p-6 animate-fade-in"
+          style={{ animationDelay: "300ms" }}
+        >
           <h2 className="text-lg font-semibold mb-4">Recent Activity</h2>
           <div className="space-y-4">
-            {recentActivities.map((activity, i) => (
-              <div
-                key={i}
-                className="flex items-center justify-between py-2 border-b border-border last:border-0"
-              >
-                <p className="text-sm">{activity.text}</p>
-                <span className="text-xs text-muted-foreground whitespace-nowrap ml-4">
-                  {activity.time}
-                </span>
-              </div>
-            ))}
+            {loading ? (
+              <div className="text-center text-muted-foreground py-4">Loading activities...</div>
+            ) : activities.length === 0 ? (
+              <div className="text-center text-muted-foreground py-4">No recent activities</div>
+            ) : (
+              activities.map((activity, i) => (
+                <div
+                  key={activity.id || i}
+                  className="flex items-center justify-between py-2 border-b border-border last:border-0"
+                >
+                  <p className="text-sm">{activity.text}</p>
+                  <span className="text-xs text-muted-foreground whitespace-nowrap ml-4">
+                    {activity.time}
+                  </span>
+                </div>
+              ))
+            )}
           </div>
         </div>
 
-        <div className="data-table-container p-6 animate-fade-in" style={{ animationDelay: "400ms" }}>
+        <div
+          className="data-table-container p-6 animate-fade-in"
+          style={{ animationDelay: "400ms" }}
+        >
           <h2 className="text-lg font-semibold mb-4">Quick Actions</h2>
           <div className="space-y-2">
             {hasRole("SUPERADMIN", "ADMIN", "HR") && (
