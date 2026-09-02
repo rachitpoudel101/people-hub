@@ -1,66 +1,131 @@
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Plus, MoreHorizontal } from "lucide-react";
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { apiRequest } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
 
-const mockBranches = [
-  { id: 1, name: "Kathmandu HQ", code: "KTM-HQ", city: "Kathmandu", address: "Durbar Marg, Kathmandu", phone: "+977-1-4567890", company: "TechCorp Nepal", employees: 142 },
-  { id: 2, name: "Pokhara Branch", code: "PKR-01", city: "Pokhara", address: "Lakeside, Pokhara", phone: "+977-61-234567", company: "TechCorp Nepal", employees: 64 },
-  { id: 3, name: "Biratnagar Branch", code: "BRT-01", city: "Biratnagar", address: "Main Road, Biratnagar", phone: "+977-21-456789", company: "TechCorp Nepal", employees: 42 },
-];
+interface Branch {
+  id: number;
+  name: string;
+  code: string;
+  city: string;
+  address: string;
+  phone: string;
+  company: string;
+  employees: number;
+}
 
-const BranchesPage = () => (
-  <div>
-    <div className="page-header flex items-start justify-between">
-      <div>
-        <h1 className="page-title">Branches</h1>
-        <p className="page-description">Manage company branches and locations</p>
+const BranchesPage = () => {
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    fetchBranches();
+  }, []);
+
+  const fetchBranches = async () => {
+    try {
+      setLoading(true);
+      const data = await apiRequest<any>("/branches/");
+      const results = Array.isArray(data) ? data : data.results || [];
+      setBranches(results);
+    } catch (error) {
+      console.error("Failed to fetch branches:", error);
+      setBranches([]);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to fetch branches",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div>
+      <div className="page-header flex items-start justify-between">
+        <div>
+          <h1 className="page-title">Branches</h1>
+          <p className="page-description">Manage company branches and locations</p>
+        </div>
+        <Button>
+          <Plus className="h-4 w-4 mr-2" /> Add Branch
+        </Button>
       </div>
-      <Button><Plus className="h-4 w-4 mr-2" /> Add Branch</Button>
-    </div>
-    <div className="data-table-container animate-fade-in">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Branch Name</TableHead>
-            <TableHead>Code</TableHead>
-            <TableHead>City</TableHead>
-            <TableHead>Company</TableHead>
-            <TableHead>Phone</TableHead>
-            <TableHead>Employees</TableHead>
-            <TableHead className="w-12"></TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {mockBranches.map((b) => (
-            <TableRow key={b.id}>
-              <TableCell className="font-medium">{b.name}</TableCell>
-              <TableCell className="text-muted-foreground font-mono text-sm">{b.code}</TableCell>
-              <TableCell className="text-muted-foreground">{b.city}</TableCell>
-              <TableCell className="text-muted-foreground">{b.company}</TableCell>
-              <TableCell className="text-muted-foreground">{b.phone}</TableCell>
-              <TableCell className="tabular-nums">{b.employees}</TableCell>
-              <TableCell>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem>Edit</DropdownMenuItem>
-                    <DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </TableCell>
+      <div className="data-table-container animate-fade-in">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Branch Name</TableHead>
+              <TableHead>Code</TableHead>
+              <TableHead>City</TableHead>
+              <TableHead>Company</TableHead>
+              <TableHead>Phone</TableHead>
+              <TableHead>Employees</TableHead>
+              <TableHead className="w-12"></TableHead>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHeader>
+          <TableBody>
+            {loading ? (
+              <TableRow>
+                <TableCell colSpan={7} className="text-center text-muted-foreground">
+                  Loading branches...
+                </TableCell>
+              </TableRow>
+            ) : branches.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={7} className="text-center text-muted-foreground">
+                  No branches found
+                </TableCell>
+              </TableRow>
+            ) : (
+              branches.map((b) => (
+                <TableRow key={b.id}>
+                  <TableCell className="font-medium">{b.name}</TableCell>
+                  <TableCell className="text-muted-foreground font-mono text-sm">
+                    {b.code}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">{b.city}</TableCell>
+                  <TableCell className="text-muted-foreground">{b.company}</TableCell>
+                  <TableCell className="text-muted-foreground">{b.phone}</TableCell>
+                  <TableCell className="tabular-nums">{b.employees}</TableCell>
+                  <TableCell>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem>Edit</DropdownMenuItem>
+                        <DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 export default BranchesPage;

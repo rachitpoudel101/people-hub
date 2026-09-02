@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
-import { login as apiLogin, setTokens, clearTokens, getTokens } from "@/lib/api";
+import { login as apiLogin, setTokens, clearTokens, getTokens, apiRequest } from "@/lib/api";
 
 export type UserRole = "SUPERADMIN" | "ADMIN" | "HR" | "MANAGER" | "EMPLOYEE";
 
@@ -29,32 +29,60 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Fetch current user from API
+  const fetchCurrentUser = useCallback(async () => {
+    try {
+      const userData = await apiRequest<User>("/users/me/");
+      setUser(userData);
+      localStorage.setItem("user", JSON.stringify(userData));
+    } catch (error) {
+      console.error("Failed to fetch current user:", error);
+      // If fetch fails, clear tokens and user
+      clearTokens();
+      setUser(null);
+    }
+  }, []);
+
   useEffect(() => {
     const tokens = getTokens();
-    const stored = localStorage.getItem("user");
-    if (tokens && stored) {
-      try {
-        setUser(JSON.parse(stored));
-      } catch {
-        clearTokens();
+    if (tokens) {
+      // Try to get user from localStorage first (for quick load)
+      const stored = localStorage.getItem("user");
+      if (stored) {
+        try {
+          setUser(JSON.parse(stored));
+        } catch {
+          // Invalid stored data
+        }
       }
+      // Then fetch fresh data from API
+      fetchCurrentUser();
     }
     setIsLoading(false);
-  }, []);
+  }, [fetchCurrentUser]);
 
   const loginFn = useCallback(async (username: string, password: string) => {
     const data = await apiLogin(username, password);
     setTokens({ access: data.access, refresh: data.refresh });
-    const userData: User = data.user || {
-      id: 0,
-      username,
-      email: "",
-      role: "EMPLOYEE" as UserRole,
-      first_name: username,
-      last_name: "",
-    };
-    localStorage.setItem("user", JSON.stringify(userData));
-    setUser(userData);
+
+    // After login, fetch user data from /users/me/
+    try {
+      const userData = await apiRequest<User>("/users/me/");
+      localStorage.setItem("user", JSON.stringify(userData));
+      setUser(userData);
+    } catch (error) {
+      // Fallback to data from login response
+      const userData: User = data.user || {
+        id: 0,
+        username,
+        email: "",
+        role: "EMPLOYEE" as UserRole,
+        first_name: username,
+        last_name: "",
+      };
+      localStorage.setItem("user", JSON.stringify(userData));
+      setUser(userData);
+    }
   }, []);
 
   const logout = useCallback(() => {

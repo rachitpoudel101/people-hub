@@ -1,26 +1,43 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Search, Plus, MoreHorizontal } from "lucide-react";
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
+import { apiRequest } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
+import { PageHeader } from "@/components/PageHeader";
+import { EmployeeDialog } from "@/components/EmployeeDialog";
 
-const mockEmployees = [
-  { id: 1, name: "Ramesh Sharma", department: "Engineering", designation: "Senior Developer", status: "ACTIVE", joining_date: "2022-03-15", branch: "Kathmandu HQ" },
-  { id: 2, name: "Sita Rai", department: "Human Resources", designation: "HR Manager", status: "ACTIVE", joining_date: "2021-07-01", branch: "Kathmandu HQ" },
-  { id: 3, name: "Bikash Thapa", department: "Operations", designation: "Branch Manager", status: "ACTIVE", joining_date: "2020-11-20", branch: "Pokhara Branch" },
-  { id: 4, name: "Anita Gurung", department: "Engineering", designation: "Junior Developer", status: "ON_LEAVE", joining_date: "2023-01-10", branch: "Kathmandu HQ" },
-  { id: 5, name: "Prakash KC", department: "Finance", designation: "Accountant", status: "TERMINATED", joining_date: "2019-06-05", branch: "Biratnagar Branch" },
-  { id: 6, name: "Mina Tamang", department: "Marketing", designation: "Marketing Lead", status: "ACTIVE", joining_date: "2022-09-12", branch: "Kathmandu HQ" },
-];
+interface Employee {
+  id: number;
+  name: string;
+  department: string;
+  designation: string;
+  status: string;
+  joining_date: string;
+  branch: string;
+}
 
 const statusColors: Record<string, string> = {
   ACTIVE: "bg-success/10 text-success border-success/20",
@@ -33,8 +50,35 @@ const statusColors: Record<string, string> = {
 const EmployeesPage = () => {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const { toast } = useToast();
 
-  const filtered = mockEmployees.filter((e) => {
+  useEffect(() => {
+    fetchEmployees();
+  }, []);
+
+  const fetchEmployees = async () => {
+    try {
+      setLoading(true);
+      const data = await apiRequest<any>("/employees/");
+      const results = Array.isArray(data) ? data : data.results || [];
+      setEmployees(results);
+    } catch (error) {
+      console.error("Failed to fetch employees:", error);
+      setEmployees([]);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to fetch employees",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filtered = employees.filter((e) => {
     const matchesSearch = e.name.toLowerCase().includes(search.toLowerCase());
     const matchesStatus = statusFilter === "all" || e.status === statusFilter;
     return matchesSearch && matchesStatus;
@@ -42,19 +86,28 @@ const EmployeesPage = () => {
 
   return (
     <div>
-      <div className="page-header flex items-start justify-between">
-        <div>
-          <h1 className="page-title">Employees</h1>
-          <p className="page-description">View and manage employee profiles</p>
-        </div>
-        <Button><Plus className="h-4 w-4 mr-2" /> Add Employee</Button>
-      </div>
+      <PageHeader
+        title="Employees"
+        description="View and manage employee profiles"
+        action={
+          <Button onClick={() => setDialogOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" /> Add Employee
+          </Button>
+        }
+      />
+
+      <EmployeeDialog open={dialogOpen} onOpenChange={setDialogOpen} onSuccess={fetchEmployees} />
 
       <div className="data-table-container animate-fade-in">
         <div className="p-4 border-b border-border flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Search employees..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+            <Input
+              placeholder="Search employees..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9"
+            />
           </div>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-40">
@@ -84,38 +137,62 @@ const EmployeesPage = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.map((emp) => (
-              <TableRow key={emp.id}>
-                <TableCell className="font-medium">{emp.name}</TableCell>
-                <TableCell className="text-muted-foreground">{emp.department}</TableCell>
-                <TableCell className="text-muted-foreground">{emp.designation}</TableCell>
-                <TableCell className="text-muted-foreground">{emp.branch}</TableCell>
-                <TableCell className="text-muted-foreground">{emp.joining_date}</TableCell>
-                <TableCell>
-                  <Badge variant="outline" className={statusColors[emp.status]}>{emp.status.replace("_", " ")}</Badge>
-                </TableCell>
-                <TableCell>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem>View Profile</DropdownMenuItem>
-                      <DropdownMenuItem>Edit</DropdownMenuItem>
-                      <DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+            {loading ? (
+              <TableRow>
+                <TableCell colSpan={7} className="text-center text-muted-foreground">
+                  Loading employees...
                 </TableCell>
               </TableRow>
-            ))}
+            ) : filtered.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={7} className="text-center text-muted-foreground">
+                  No employees found
+                </TableCell>
+              </TableRow>
+            ) : (
+              filtered.map((emp) => (
+                <TableRow key={emp.id}>
+                  <TableCell className="font-medium">{emp.name}</TableCell>
+                  <TableCell className="text-muted-foreground">{emp.department}</TableCell>
+                  <TableCell className="text-muted-foreground">{emp.designation}</TableCell>
+                  <TableCell className="text-muted-foreground">{emp.branch}</TableCell>
+                  <TableCell className="text-muted-foreground">{emp.joining_date}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className={statusColors[emp.status]}>
+                      {emp.status.replace("_", " ")}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem>View Profile</DropdownMenuItem>
+                        <DropdownMenuItem>Edit</DropdownMenuItem>
+                        <DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
 
         <div className="p-4 border-t border-border flex items-center justify-between text-sm text-muted-foreground">
-          <span>Showing {filtered.length} of {mockEmployees.length} employees</span>
+          <span>
+            Showing {filtered.length} of {employees.length} employees
+          </span>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" disabled>Previous</Button>
-            <Button variant="outline" size="sm" disabled>Next</Button>
+            <Button variant="outline" size="sm" disabled>
+              Previous
+            </Button>
+            <Button variant="outline" size="sm" disabled>
+              Next
+            </Button>
           </div>
         </div>
       </div>

@@ -1,4 +1,4 @@
-const API_BASE = "http://127.0.0.1:8000";
+const API_BASE = import.meta.env.VITE_API_URL;
 
 export interface TokenPair {
   access: string;
@@ -41,10 +41,7 @@ async function refreshToken(): Promise<string | null> {
   }
 }
 
-export async function apiRequest<T = any>(
-  endpoint: string,
-  options: RequestInit = {}
-): Promise<T> {
+export async function apiRequest<T = any>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const tokens = getTokens();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
