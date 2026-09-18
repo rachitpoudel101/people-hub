@@ -3,21 +3,61 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Users, CalendarCheck, Megaphone, Building2, TrendingUp, Clock } from "lucide-react";
 import { apiRequest } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { AttendanceClockCard } from "@/components/AttendanceClockCard";
 
 interface DashboardStats {
-  total_employees: number;
-  present_today: number;
-  on_leave: number;
-  active_notices: number;
-  attendance_percentage?: number;
-  employee_growth?: number;
+  total_employees?: number;
+  today_present?: number;
+  today_absent?: number;
+  today_on_leave?: number;
+  today_wfh?: number;
+  attendance_rate?: number;
+  total_team_members?: number;
+  team_attendance_rate?: number;
+  monthly_attendance_days?: number;
+  monthly_present_days?: number;
+  monthly_attendance_rate?: number;
 }
 
-interface Activity {
+interface DashboardActivity {
   id: number;
-  text: string;
-  time: string;
   type: string;
+  employee_name: string;
+  employee_id: string;
+  date: string;
+  check_in: string | null;
+  check_out: string | null;
+  status: string;
+  is_approved: boolean;
+}
+
+interface DashboardResponse {
+  user: {
+    name: string;
+    employee_id: string;
+    role: string;
+    department: string | null;
+    designation: string | null;
+  };
+  today_status: {
+    has_checked_in: boolean;
+    has_checked_out: boolean;
+    check_in_time: string | null;
+    check_out_time: string | null;
+    status: string | null;
+    is_approved: boolean;
+  };
+  statistics: DashboardStats;
+  recent_activities: DashboardActivity[];
+  pending_approvals?: {
+    total_pending: number;
+    pending_today: number;
+    pending_this_week: number;
+  };
+  upcoming_events: {
+    holidays: Array<{ id: number; title: string; date: string }>;
+    notices: Array<{ id: number; name: string; date: string }>;
+  };
 }
 
 const StatCard = ({
@@ -51,16 +91,26 @@ const StatCard = ({
   </div>
 );
 
+// Helper function to format time ago
+const getTimeAgo = (dateString: string): string => {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return "Just now";
+  if (diffMins < 60) return `${diffMins} min ago`;
+  if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`;
+  if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
+  return date.toLocaleDateString();
+};
+
 const DashboardPage = () => {
   const { user, hasRole } = useAuth();
   const { toast } = useToast();
-  const [stats, setStats] = useState<DashboardStats>({
-    total_employees: 0,
-    present_today: 0,
-    on_leave: 0,
-    active_notices: 0,
-  });
-  const [activities, setActivities] = useState<Activity[]>([]);
+  const [dashboardData, setDashboardData] = useState<DashboardResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -70,58 +120,51 @@ const DashboardPage = () => {
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
-      // Fetch stats - gracefully handle if endpoint doesn't exist
-      try {
-        const statsData = await apiRequest<DashboardStats>("/dashboard/stats/");
-        setStats(statsData);
-      } catch (error) {
-        console.log("Dashboard stats endpoint not available, using defaults");
-      }
-
-      // Fetch recent activities
-      try {
-        const activitiesData = await apiRequest<any>("/dashboard/activities/");
-        const results = Array.isArray(activitiesData)
-          ? activitiesData
-          : activitiesData.results || [];
-        setActivities(results);
-      } catch (error) {
-        console.log("Dashboard activities endpoint not available");
-      }
+      const data = await apiRequest<DashboardResponse>("/dashboard/activities/");
+      setDashboardData(data);
     } catch (error) {
       console.error("Failed to fetch dashboard data:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to load dashboard data",
+      });
     } finally {
       setLoading(false);
     }
   };
 
+  const stats = dashboardData?.statistics || {};
+
   const statCards = [
     {
       icon: Users,
       label: "Total Employees",
-      value: loading ? "..." : stats.total_employees.toString(),
-      change: stats.employee_growth ? `+${stats.employee_growth} this month` : undefined,
+      value: loading ? "..." : (stats.total_employees || stats.total_team_members || 0).toString(),
+      change: stats.attendance_rate ? `${stats.attendance_rate}% present` : undefined,
       color: "bg-primary/10 text-primary",
     },
     {
       icon: CalendarCheck,
       label: "Present Today",
-      value: loading ? "..." : stats.present_today.toString(),
-      change: stats.attendance_percentage
-        ? `${stats.attendance_percentage}% attendance`
-        : undefined,
+      value: loading ? "..." : (stats.today_present || 0).toString(),
+      change: stats.attendance_rate
+        ? `${stats.attendance_rate}% attendance`
+        : stats.team_attendance_rate
+          ? `${stats.team_attendance_rate}% team rate`
+          : undefined,
       color: "bg-success/10 text-success",
     },
     {
       icon: Clock,
       label: "On Leave",
-      value: loading ? "..." : stats.on_leave.toString(),
+      value: loading ? "..." : (stats.today_on_leave || 0).toString(),
       color: "bg-warning/10 text-warning",
     },
     {
       icon: Megaphone,
-      label: "Active Notices",
-      value: loading ? "..." : stats.active_notices.toString(),
+      label: "Notices",
+      value: loading ? "..." : (dashboardData?.upcoming_events?.notices?.length || 0).toString(),
       color: "bg-info/10 text-info",
     },
   ];
@@ -141,6 +184,10 @@ const DashboardPage = () => {
         ))}
       </div>
 
+      <div className="mb-6">
+        <AttendanceClockCard />
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div
           className="lg:col-span-2 data-table-container p-6 animate-fade-in"
@@ -150,20 +197,47 @@ const DashboardPage = () => {
           <div className="space-y-4">
             {loading ? (
               <div className="text-center text-muted-foreground py-4">Loading activities...</div>
-            ) : activities.length === 0 ? (
+            ) : !dashboardData?.recent_activities ||
+              dashboardData.recent_activities.length === 0 ? (
               <div className="text-center text-muted-foreground py-4">No recent activities</div>
             ) : (
-              activities.map((activity, i) => (
-                <div
-                  key={activity.id || i}
-                  className="flex items-center justify-between py-2 border-b border-border last:border-0"
-                >
-                  <p className="text-sm">{activity.text}</p>
-                  <span className="text-xs text-muted-foreground whitespace-nowrap ml-4">
-                    {activity.time}
-                  </span>
-                </div>
-              ))
+              dashboardData.recent_activities.map((activity) => {
+                const timeAgo = getTimeAgo(activity.date);
+                const statusText = activity.status.replace(/_/g, " ");
+                const activityText = `${activity.employee_name} - ${statusText}`;
+                const checkInTime = activity.check_in
+                  ? new Date(activity.check_in).toLocaleTimeString("en-US", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      hour12: true,
+                    })
+                  : null;
+                const checkOutTime = activity.check_out
+                  ? new Date(activity.check_out).toLocaleTimeString("en-US", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      hour12: true,
+                    })
+                  : null;
+
+                return (
+                  <div
+                    key={activity.id}
+                    className="flex items-center justify-between py-2 border-b border-border last:border-0"
+                  >
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">{activityText}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {checkInTime || "Not checked in"}
+                        {checkOutTime && ` - ${checkOutTime}`}
+                      </p>
+                    </div>
+                    <span className="text-xs text-muted-foreground whitespace-nowrap ml-4">
+                      {timeAgo}
+                    </span>
+                  </div>
+                );
+              })
             )}
           </div>
         </div>

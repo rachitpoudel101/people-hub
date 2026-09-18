@@ -24,11 +24,14 @@ import { PageHeader } from "@/components/PageHeader";
 
 interface Attendance {
   id: number;
-  employee: string;
+  employee: string | number;
+  employee_name?: string;
   date: string;
   check_in: string | null;
   check_out: string | null;
   status: string;
+  work_duration?: string;
+  total_hours?: number;
 }
 
 const statusColors: Record<string, string> = {
@@ -71,7 +74,7 @@ const AttendancePage = () => {
   };
 
   const filtered = attendance.filter((a) => {
-    const matchesSearch = a.employee.toLowerCase().includes(search.toLowerCase());
+    const matchesSearch = a.employee_name?.toLowerCase().includes(search.toLowerCase()) || false;
     const matchesStatus = statusFilter === "all" || a.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -147,32 +150,48 @@ const AttendancePage = () => {
               <TableHead>Date</TableHead>
               <TableHead>Check In</TableHead>
               <TableHead>Check Out</TableHead>
+              <TableHead>Duration</TableHead>
               <TableHead>Status</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center text-muted-foreground">
+                <TableCell colSpan={6} className="text-center text-muted-foreground">
                   Loading attendance...
                 </TableCell>
               </TableRow>
             ) : filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center text-muted-foreground">
+                <TableCell colSpan={6} className="text-center text-muted-foreground">
                   No attendance records found
                 </TableCell>
               </TableRow>
             ) : (
               filtered.map((a) => (
                 <TableRow key={a.id}>
-                  <TableCell className="font-medium">{a.employee}</TableCell>
+                  <TableCell className="font-medium">{a.employee_name || a.employee}</TableCell>
                   <TableCell className="text-muted-foreground">{a.date}</TableCell>
                   <TableCell className="text-muted-foreground font-mono text-sm">
-                    {a.check_in || "—"}
+                    {a.check_in
+                      ? new Date(a.check_in).toLocaleTimeString("en-US", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          hour12: true,
+                        })
+                      : "—"}
                   </TableCell>
                   <TableCell className="text-muted-foreground font-mono text-sm">
-                    {a.check_out || "—"}
+                    {a.check_out
+                      ? new Date(a.check_out).toLocaleTimeString("en-US", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          hour12: true,
+                        })
+                      : "—"}
+                  </TableCell>
+                  <TableCell className="font-medium font-mono text-sm text-primary">
+                    {a.work_duration || (a.total_hours > 0 ? `${a.total_hours}h` : "—")}
                   </TableCell>
                   <TableCell>
                     <Badge variant="outline" className={statusColors[a.status]}>
